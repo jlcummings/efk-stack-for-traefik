@@ -1,0 +1,57 @@
+version: '3'
+services:
+# the following service, 'web' is illustrative and not prescriptive of how to tie into the fluentd log sink
+#  web:
+#    image: ${CADDY_IMAGE}
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#    volumes:
+#      #- $PWD/Caddyfile:/etc/caddy/Caddyfile
+#      #- $PWD/site:/srv
+#      - caddy_data:/data
+#      - caddy_config:/config
+#    links:
+#      - fluentd
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: fluentd:24224
+#        tag: caddy.access
+
+fluentd:
+    build: ./fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    links:
+      - "elasticsearch"
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+
+  elasticsearch:
+    image: ${ELASTICSEARCH_IMAGE}
+    environment:
+      - "discovery.type=single-node"
+    expose:
+      - "9200"
+    ports:
+      - "9200:9200"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.elasticsearch.entrypoints=http"
+      - "traefik.http.routers.elasticsearch.rule=Host(`localhost`) && PathPrefix(`/es`) || Host(`${LOGHOST_FQDN}`)"
+      - "traefik.http.routers.elasticsearch.middlewares=es-stripprefix"
+      - "traefik.http.middlewares.es-stripprefix.stripprefix.prefixes=/es"
+      - "traefik.http.services.elasticsearch.loadbalancer.server.port=9200"
+
+  kibana:
+    image: ${KIBANA_IMAGE}
+    links:
+      - "elasticsearch"
+    ports:
+      - "5601:5601"
+
+volumes:
+  caddy_data:
+  caddy_config:

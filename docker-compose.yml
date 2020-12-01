@@ -1,0 +1,37 @@
+version: '3'
+services:
+  fluentd:
+    build: ./fluentd
+    container_name: fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    links:
+      - "elasticsearch"
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+
+  elasticsearch:
+    image: ${ELASTICSEARCH_IMAGE}
+    container_name: elasticsearch
+    environment:
+      - "discovery.type=single-node"
+    expose:
+      - "9200"
+    ports:
+      - "9200:9200"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.elasticsearch.entrypoints=http"
+      - "traefik.http.routers.elasticsearch.rule=Host(`localhost`) && PathPrefix(`/es`) || Host(`${LOGHOST_FQDN}`)"
+      - "traefik.http.routers.elasticsearch.middlewares=es-stripprefix"
+      - "traefik.http.middlewares.es-stripprefix.stripprefix.prefixes=/es"
+      - "traefik.http.services.elasticsearch.loadbalancer.server.port=9200"
+
+  kibana:
+    image: ${KIBANA_IMAGE}
+    container_name: kibana
+    links:
+      - "elasticsearch"
+    ports:
+      - "5601:5601"
